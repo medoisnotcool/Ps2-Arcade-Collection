@@ -1,0 +1,40 @@
+name: Build PS2 ELF
+
+on:
+  push:
+  pull_request:
+  workflow_dispatch:
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - name: Check out source
+        uses: actions/checkout@v4
+
+      - name: Test game logic on the build machine
+        run: |
+          mkdir -p host-test
+          gcc -DHOST_SVG -O1 -Wall -Wextra -std=gnu99 -I. \
+            -o host-test/test_logic tests/test_logic.c app.c gfx3d.c font3d.c -lm
+          ./host-test/test_logic
+
+      - name: Download the official ps2dev toolchain
+        run: |
+          curl -fL --retry 3 -o "$RUNNER_TEMP/ps2dev.tar.gz" \
+            https://github.com/ps2dev/ps2dev/releases/download/latest/ps2dev-ubuntu-latest.tar.gz
+          mkdir -p "$RUNNER_TEMP/ps2dev"
+          tar -xzf "$RUNNER_TEMP/ps2dev.tar.gz" --strip-components=1 -C "$RUNNER_TEMP/ps2dev"
+
+      - name: Build the PS2 ELF
+        run: |
+          make PS2DEV="$RUNNER_TEMP/ps2dev" -j2
+          file ARCADE3D.ELF
+
+      - name: Upload the ELF
+        uses: actions/upload-artifact@v4
+        with:
+          name: 3D-Arcade-PS2-ELF
+          path: ARCADE3D.ELF
+          if-no-files-found: error
